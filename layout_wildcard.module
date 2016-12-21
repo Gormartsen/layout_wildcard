@@ -197,7 +197,7 @@ function layout_wildcard_form_layout_settings_form_alter(&$form, &$form_state) {
   }
   $form['paths'] = array(
     '#title' => t('Alternative path'),
-    '#description' => t('Specify alternative path to handle by this layout') . t('Use the "%" (percent) symbol to indicate a wildcard in the path. i.e. "node/%" or "node/%/edit"'),
+    '#description' => t('Optionally, specify one or more alternative paths to handle with this layout (in addition to the primary path above). Note that contexts will only be available for the primary path. ') . t('Use the "%" (percent) symbol to indicate a wildcard in the path. i.e. "node/%" or "node/%/edit"'),
     '#type' => 'textarea',
     '#default_value' => $default_value,
   );
