@@ -171,11 +171,18 @@ function layout_wildcard_get_path_layout_names($path) {
       $path_map[$config['path']][] = $layout_name;
     }
     if (isset($config['paths']) && is_array($config['paths'])) {
-      foreach($config['paths'] as $path) {
-        $path_map[$path][] = $layout_name;  
+      foreach($config['paths'] as $subpath) {
+        $path_map[$subpath][] = $layout_name;  
       }
     }
   }
+  # Fix issue #2412
+  $ancestors = menu_get_ancestors(explode("/", $path));
+  foreach($ancestors as $ancestor_path) {
+    if(isset($path_map[$ancestor_path])) {
+      return $path_map[$ancestor_path];
+    }
+  } 
 
   return isset($path_map[$path]) ? $path_map[$path] : array();
 }
@@ -205,7 +212,10 @@ function layout_wildcard_settings_form_validate($form, &$form_state) {
   if (isset($form_state['values']['paths'])) {
     $paths = explode("\n", $form_state['values']['paths']);
     foreach($paths as $path){
-      $layout_wildcard_paths[] = trim($path);
+      $path = trim($path);
+      if(!empty($path)) {
+        $layout_wildcard_paths[] = trim($path);
+      }
     }
   }
 }
@@ -215,8 +225,6 @@ function layout_wildcard_settings_form_validate($form, &$form_state) {
  */
 function layout_wildcard_layout_presave($layout_name, &$data) {
   global $layout_wildcard_paths;
-  backdrop_set_message('presave' . print_r($layout_wildcard_paths, true));
-  
   if(!empty($layout_wildcard_paths)) {
     $data['paths'] = $layout_wildcard_paths;
   }
