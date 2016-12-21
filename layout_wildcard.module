@@ -1,0 +1,223 @@
+<?php
+/**
+ * @file
+ * The Layout Wildcard module provide an ability to use Layout to multiple pathes.
+ *
+ */
+ 
+/**
+ * Route handler callback; Execute the current route item or wrap in a layout.
+ *
+ * @param $router_item
+ *   The menu router item for the page currently being loaded.
+ * @return
+ *   The fully built HTML content for this page, which will be wrapped in
+ *   page.tpl.php.
+ *
+ * @ingroup callbacks
+ */
+function layout_wildcard_route_handler($router_item) {
+  // If a different delivery callback is specified, we're probably not returning
+  // HTML and it definitely should not be wrapped in a layout. Call the default
+  // route handler and return its response directly.
+  if (!backdrop_is_html() || !empty($router_item['delivery_callback']) || $router_item['page_callback'] === 'layout_page_callback') {
+    return menu_default_route_handler($router_item);
+  }
+
+  $selected_layout = layout_wildcard_get_layout_by_path(NULL, $router_item);
+
+  // Safety check that we don't show an admin layout to a user who cannot view
+  // the admin theme. This may happen because the cached layout list does not
+  // include a permissions check on the admin theme.
+  if ($selected_layout->name === 'admin_default' && !user_access('view the administration theme')) {
+    $selected_layout = layout_load('default');
+  }
+
+  // Special handling for 404 and 403 pages to render in admin theme. The
+  // current path will be the 404/403 system path, and we need to check the
+  // original path, which is stored in "destination" by
+  // backdrop_deliver_html_page().
+  if (in_array(backdrop_get_http_header('Status'), array('404 Not Found', '403 Forbidden')) && user_access('view the administration theme')) {
+    if (isset($_GET['destination']) && path_is_admin($_GET['destination'])) {
+      $selected_layout = layout_load('admin_default');
+    }
+  }
+
+  if ($selected_layout) {
+    // Render the layout.
+    $renderer = layout_create_renderer('standard', $selected_layout);
+    if ($selected_layout->isDefault()) {
+      $renderer->ensurePageContentBlock();
+    }
+    return $renderer->render();
+  }
+
+  // Fallback code if even the expected default layout cannot be found.
+  return menu_default_route_handler($router_item);
+}
+
+/**
+ * Get the layout which is active based on a path or router item.
+ *
+ * This may also be used to get the current layout on a page if no parameters
+ * are passed. In which case the current path will be used.
+ *
+ * @param string $path
+ *   The menu routing path, with all wildcards represented by "%" symbols.
+ * @param $router_item
+ *   The menu router item for the page currently being loaded.
+ *   The $path parameter will be ignored if $router_item is specified.
+ *
+ * @return Layout
+ *   The Layout object for the specified path.
+ *
+ * @since 1.4.0
+ * @see layout_get_layout_by_path
+ */
+function layout_wildcard_get_layout_by_path($path = NULL, $router_item = NULL) {
+  if (!isset($router_item)) {
+    $router_item = menu_get_item($path);
+  }
+
+  $cache = &backdrop_static(__FUNCTION__);
+
+  if (empty($cache[$router_item['path']])) {
+    $layouts = layout_wildcard_load_multiple_by_path($router_item['path'], TRUE);
+    $selected_layout = NULL;
+    foreach ($layouts as $layout) {
+      // Contexts must be set before the layout's access may be checked.
+      $contexts = $layout->getContexts();
+      foreach ($contexts as $context) {
+        if (isset($context->position) && isset($router_item['map'][$context->position])) {
+          $context->setData($router_item['map'][$context->position]);
+        }
+      }
+
+      if (!$layout->disabled && $layout->checkAccess()) {
+        $selected_layout = $layout;
+        break;
+      }
+    }
+
+    // If no layout matches at the path, use the default layout.
+    if (!$selected_layout) {
+      if (path_is_admin($router_item['path']) && user_access('view the administration theme')) {
+        $selected_layout = layout_load('admin_default');
+      }
+      else {
+        $selected_layout = layout_load('default');
+      }
+    }
+
+    $cache[$router_item['path']] = $selected_layout;
+  }
+
+  return $cache[$router_item['path']];
+}
+
+/**
+ * Load all layouts at a given path.
+ *
+ * @param string $path
+ *   The menu routing path, with all wildcards represented by "%" symbols.
+ *
+ * @return Layout[]
+ *   An array of load Layout object instances.
+ * @see layout_load_multiple_by_path
+ */
+function layout_wildcard_load_multiple_by_path($path, $skip_menu_items = NULL) {
+  if ($cache = cache('layout_path')->get($path)) {
+    $layouts = $cache->data;
+
+    // Populate these cached layouts into layout_load_multiple() to optimize
+    // any future calls to it.
+    $static_cache = &backdrop_static('layout_wildcard_load_multiple', array());
+    $static_cache = array_merge($layouts, $static_cache);
+  }
+  else {
+    $layout_names = layout_wildcard_get_path_layout_names($path);
+    if (empty($layout_names)) {
+      // Skip loading menu items for the default layouts.
+      if (is_null($skip_menu_items)) {
+        $skip_menu_items = TRUE;
+      }
+      if (path_is_admin($path)) {
+        $layout_names[] = 'admin_default';
+      }
+      else {
+        $layout_names[] = 'default';
+      }
+    }
+
+    $layouts = layout_load_multiple($layout_names, $skip_menu_items);
+    foreach ($layouts as $layout) {
+      $layout->resetContexts();
+    }
+    cache('layout_path')->set($path, $layouts);
+  }
+  return $layouts;
+}
+
+/**
+ * Get a list of layouts that share a particular path.
+ * @see layout_get_path_layout_names
+ */
+function layout_wildcard_get_path_layout_names($path) {
+  $path_map = &backdrop_static(__FUNCTION__, array());
+
+  $configs = layout_get_all_configs('layout');
+  foreach ($configs as $layout_name => $config) {
+    if (isset($config['path'])) {
+      $path_map[$config['path']][] = $layout_name;
+    }
+    if (isset($config['paths']) && is_array($config['paths'])) {
+      foreach($config['paths'] as $path) {
+        $path_map[$path][] = $layout_name;  
+      }
+    }
+  }
+
+  return isset($path_map[$path]) ? $path_map[$path] : array();
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function layout_wildcard_form_layout_settings_form_alter(&$form, &$form_state) {
+  $default_value = "";
+  foreach($form_state['build_info']['args'][0]->paths as $path){
+    $default_value .= $path . "\n";
+  }
+  $form['paths'] = array(
+    '#title' => t('Alternative path'),
+    '#description' => t('Specify alternative path to handle by this layout') . t('Use the "%" (percent) symbol to indicate a wildcard in the path. i.e. "node/%" or "node/%/edit"'),
+    '#type' => 'textarea',
+    '#default_value' => $default_value,
+  );
+  $form['actions']['submit']['#validate'][] = 'layout_wildcard_settings_form_validate';
+}
+
+/**
+ * Validate handler for layout_settings_form() that saves in-progress values.
+ */
+function layout_wildcard_settings_form_validate($form, &$form_state) {
+  global $layout_wildcard_paths;
+  if (isset($form_state['values']['paths'])) {
+    $paths = explode("\n", $form_state['values']['paths']);
+    foreach($paths as $path){
+      $layout_wildcard_paths[] = trim($path);
+    }
+  }
+}
+
+/**
+ * Implements hook_layout_presave()
+ */
+function layout_wildcard_layout_presave($layout_name, &$data) {
+  global $layout_wildcard_paths;
+  backdrop_set_message('presave' . print_r($layout_wildcard_paths, true));
+  
+  if(!empty($layout_wildcard_paths)) {
+    $data['paths'] = $layout_wildcard_paths;
+  }
+}

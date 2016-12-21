@@ -1,0 +1,19 @@
+<?php
+/**
+ * @file
+ * Install, update and uninstall functions for the Layout Pipe module.
+ */
+
+/**
+ * Implements hook_enable().
+ */
+function layout_wildcard_enable() {
+  config_set('system.core', 'menu_route_handler', 'layout_wildcard_route_handler');
+}
+
+/**
+ * Implements hook_disable().
+ */
+function layout_wildcard_disable() {
+  config_set('system.core', 'menu_route_handler', 'layout_route_handler');
+}

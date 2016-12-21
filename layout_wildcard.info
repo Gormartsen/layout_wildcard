@@ -1,0 +1,5 @@
+name = Layout Wildcard
+description = Allow to use Layout by multiple pathes.
+package = Layout
+type = module
+backdrop = 1.x
