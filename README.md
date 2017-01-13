@@ -1,7 +1,11 @@
 ## Layout Wildcard
 
-Add `Alternative path` settings to layout and allow to use one layout for list of path.
+This module adds a new `Alternative paths` setting each the layout configuration. This setting allows specifying a list of multiple additional paths to be handled by the layout.
 
+Additional features:
+
+- Allows specifying a path in the form of `somepath/%` that will apply to all subpaths.
+- ([planned](https://github.com/backdrop-contrib/layout_wildcard/issues/1)) Supports specifying URL aliases instead of system paths.
 
 ## License
 
