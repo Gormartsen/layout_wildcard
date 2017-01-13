@@ -1,9 +1,10 @@
 <?php
 /**
  * @file
- * The Layout Wildcard module provide an ability to use Layout to multiple pathes.
+ * The Layout Wildcard module provides the ability to use a Layout in multiple
+ * paths.
  *
- */
+*/
  
 /**
  * Route handler callback; Execute the current route item or wrap in a layout.
@@ -197,7 +198,7 @@ function layout_wildcard_form_layout_settings_form_alter(&$form, &$form_state) {
   }
   $form['paths'] = array(
     '#title' => t('Alternative path'),
-    '#description' => t('Optionally, specify one or more alternative paths to handle with this layout (in addition to the primary path above). Note that contexts will only be available for the primary path. ') . t('Use the "%" (percent) symbol to indicate a wildcard in the path. i.e. "node/%" or "node/%/edit"'),
+    '#description' => t('Optionally, specify one or more alternative paths to be handled by this layout (in addition to the primary path above). Note that contexts will only be available for the primary path. ') . t('Use the "%" (percent) symbol to indicate a wildcard in the path. i.e. "node/%" or "node/%/edit"'),
     '#type' => 'textarea',
     '#default_value' => $default_value,
   );
