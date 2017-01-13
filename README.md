@@ -1,6 +1,6 @@
 ## Layout Wildcard
 
-This module adds a new `Alternative paths` setting each the layout configuration. This setting allows specifying a list of multiple additional paths to be handled by the layout.
+This module adds a new `Alternative paths` setting to each layout configuration. This setting allows specifying a list of multiple additional paths to be handled by the layout.
 
 Additional features:
 
