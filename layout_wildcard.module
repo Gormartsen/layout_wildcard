@@ -171,8 +171,8 @@ function layout_wildcard_get_path_layout_names($path) {
     if (isset($config['path'])) {
       $path_map[$config['path']][] = $layout_name;
     }
-    if (isset($config['paths']) && is_array($config['paths'])) {
-      foreach($config['paths'] as $subpath) {
+    if (isset($config['settings']['paths']) && is_array($config['settings']['paths'])) {
+      foreach($config['settings']['paths'] as $subpath) {
         $path_map[$subpath][] = $layout_name;  
       }
     }
@@ -193,11 +193,11 @@ function layout_wildcard_get_path_layout_names($path) {
  */
 function layout_wildcard_form_layout_settings_form_alter(&$form, &$form_state) {
   $default_value = "";
-  foreach($form_state['build_info']['args'][0]->paths as $path){
+  foreach($form_state['build_info']['args'][0]->settings['paths'] as $path){
     $default_value .= $path . "\n";
   }
   $form['paths'] = array(
-    '#title' => t('Alternative path'),
+    '#title' => t('Alternative paths'),
     '#description' => t('Optionally, specify one or more alternative paths to be handled by this layout (in addition to the primary path above). Note that contexts will only be available for the primary path. ') . t('Use the "%" (percent) symbol to indicate a wildcard in the path. i.e. "node/%" or "node/%/edit"'),
     '#type' => 'textarea',
     '#default_value' => $default_value,
@@ -224,9 +224,9 @@ function layout_wildcard_settings_form_validate($form, &$form_state) {
 /**
  * Implements hook_layout_presave()
  */
-function layout_wildcard_layout_presave($layout_name, &$data) {
+function layout_wildcard_layout_presave($layout) {
   global $layout_wildcard_paths;
   if(!empty($layout_wildcard_paths)) {
-    $data['paths'] = $layout_wildcard_paths;
+    $layout->settings['paths'] = $layout_wildcard_paths;
   }
 }
