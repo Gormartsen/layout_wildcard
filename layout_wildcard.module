@@ -98,11 +98,11 @@ function layout_wildcard_get_layout_by_path($path = NULL, $router_item = NULL) {
         break;
       }
     }
-    if ($data && $node_layouts = layout_load_multiple_by_path('node/%', TRUE)) {
+    if ($data && $node_layouts = layout_wildcard_load_multiple_by_path('node/%', TRUE)) {
       $layouts = $node_layouts;
     }
     else {
-      $layouts = layout_load_multiple_by_path($router_item['path'], TRUE);
+      $layouts = layout_wildcard_load_multiple_by_path($router_item['path'], TRUE);
     }
     $selected_layout = NULL;
     foreach ($layouts as $layout) {
