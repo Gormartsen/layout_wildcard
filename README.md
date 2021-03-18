@@ -14,3 +14,4 @@ This project is GPL v3 software. See the LICENSE.txt file in this directory for 
 ## Current Maintainers
 
 * [Gor Martsen](http://github.com/gormartsen)
+* [Robert J. Lang](http://github.com/bugfolder)
