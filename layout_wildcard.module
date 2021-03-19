@@ -5,7 +5,7 @@
  * paths.
  *
 */
- 
+
 /**
  * Route handler callback; Execute the current route item or wrap in a layout.
  *
@@ -46,7 +46,7 @@ function layout_wildcard_route_handler($router_item) {
 
   if ($selected_layout) {
     // Render the layout.
-    $renderer = layout_create_renderer('standard', $selected_layout);
+    $renderer = layout_create_renderer($selected_layout->renderer_name, $selected_layout);
     if ($selected_layout->isDefault()) {
       $renderer->ensurePageContentBlock();
     }
@@ -64,7 +64,7 @@ function layout_wildcard_route_handler($router_item) {
  * are passed. In which case the current path will be used.
  *
  * @param string $path
- *   The menu routing path, with all wildcards represented by "%" symbols.
+ *   The menu routing path, with all placeholders represented by "%" symbols.
  * @param $router_item
  *   The menu router item for the page currently being loaded.
  *   The $path parameter will be ignored if $router_item is specified.
@@ -83,14 +83,51 @@ function layout_wildcard_get_layout_by_path($path = NULL, $router_item = NULL) {
   $cache = &backdrop_static(__FUNCTION__);
 
   if (empty($cache[$router_item['path']])) {
-    $layouts = layout_wildcard_load_multiple_by_path($router_item['path'], TRUE);
+    // If the path is a node preview path, check if a custom layout exists for
+    // nodes and use that instead.
+    // @ todo: This adds very specific code for node previews which too closely
+    // couples Node and Layout modules. This needs to be reverted in a future
+    // commit.
+    $data = NULL;
+    $node_types = node_type_get_types();
+    foreach ($node_types as $type) {
+      $preview_path = 'node/' . $type->type . '/preview';
+      if ($router_item['path'] == $preview_path) {
+        $tempstore_id = node_build_tempstore_id($type->type);
+        $data = node_get_node_tempstore($tempstore_id);
+        break;
+      }
+    }
+    if ($data && $node_layouts = layout_wildcard_load_multiple_by_path('node/%', TRUE)) {
+      $layouts = $node_layouts;
+    }
+    else {
+      $layouts = layout_wildcard_load_multiple_by_path($router_item['path'], TRUE);
+    }
     $selected_layout = NULL;
     foreach ($layouts as $layout) {
       // Contexts must be set before the layout's access may be checked.
       $contexts = $layout->getContexts();
       foreach ($contexts as $context) {
-        if (isset($context->position) && isset($router_item['map'][$context->position])) {
-          $context->setData($router_item['map'][$context->position]);
+        if (isset($context->position)) {
+
+          // Check for an object loaded by the menu router. Use a preview from
+          // Tempstore if on a node preview page.
+          // @ todo: This is also specific code for node previews which needs
+          // to be reverted in a future commit.
+          if (isset($router_item['map'][$context->position])) {
+            $data = isset($data) ? $data : $router_item['map'][$context->position];
+            $context->setData($data);
+          }
+
+          // If no context is set, load one using the layout info.
+          if (!is_object($context->data)) {
+            $context_info = layout_get_context_info($context->plugin);
+            if (isset($context_info['load callback'])) {
+              $context_data = call_user_func_array($context_info['load callback'], $router_item['original_map'][$context->position]);
+              $context->setData($context_data);
+            }
+          }
         }
       }
 
@@ -120,7 +157,7 @@ function layout_wildcard_get_layout_by_path($path = NULL, $router_item = NULL) {
  * Load all layouts at a given path.
  *
  * @param string $path
- *   The menu routing path, with all wildcards represented by "%" symbols.
+ *   The menu routing path, with all placeholders represented by "%" symbols.
  *
  * @return Layout[]
  *   An array of load Layout object instances.
@@ -151,9 +188,6 @@ function layout_wildcard_load_multiple_by_path($path, $skip_menu_items = NULL) {
     }
 
     $layouts = layout_load_multiple($layout_names, $skip_menu_items);
-    foreach ($layouts as $layout) {
-      $layout->resetContexts();
-    }
     cache('layout_path')->set($path, $layouts);
   }
   return $layouts;
@@ -173,7 +207,7 @@ function layout_wildcard_get_path_layout_names($path) {
     }
     if (isset($config['settings']['paths']) && is_array($config['settings']['paths'])) {
       foreach($config['settings']['paths'] as $subpath) {
-        $path_map[$subpath][] = $layout_name;  
+        $path_map[$subpath][] = $layout_name;
       }
     }
   }
@@ -183,7 +217,7 @@ function layout_wildcard_get_path_layout_names($path) {
     if(isset($path_map[$ancestor_path])) {
       return $path_map[$ancestor_path];
     }
-  } 
+  }
 
   return isset($path_map[$path]) ? $path_map[$path] : array();
 }
