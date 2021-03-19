@@ -17,3 +17,17 @@ function layout_wildcard_enable() {
 function layout_wildcard_disable() {
   config_set('system.core', 'menu_route_handler', 'layout_route_handler');
 }
+
+/**
+ * Implements hook_uninstall().
+ */
+function layout_wildcard_uninstall() {
+  $configs = layout_get_all_configs('layout');
+  foreach ($configs as $layout_name => $config) {
+    $config_name = "layout.layout.{$layout_name}";
+    if (isset($config['settings']['paths'])) {
+      unset($config['settings']['paths']);
+      config_set($config_name, 'settings', $config['settings']);
+    }
+  }
+}
