@@ -1,7 +1,7 @@
 <?php
 /**
  * @file
- * The Layout Wildcard module provides the ability to use a Layout in multiple
+ * The Layout Wildcard module provides the ability to use a Layout on multiple
  * paths.
  *
 */
@@ -16,6 +16,7 @@
  *   page.tpl.php.
  *
  * @ingroup callbacks
+ * @see layout_route_handler()
  */
 function layout_wildcard_route_handler($router_item) {
   // If a different delivery callback is specified, we're probably not returning
@@ -158,9 +159,13 @@ function layout_wildcard_get_layout_by_path($path = NULL, $router_item = NULL) {
  *
  * @param string $path
  *   The menu routing path, with all placeholders represented by "%" symbols.
+ * @param string $skip_menu_items
+ *   Specifies whether to skip loading menu items. Passed through to
+ *   layout_load_multiple().
  *
  * @return Layout[]
  *   An array of load Layout object instances.
+ *
  * @see layout_load_multiple_by_path
  */
 function layout_wildcard_load_multiple_by_path($path, $skip_menu_items = NULL) {
@@ -195,6 +200,13 @@ function layout_wildcard_load_multiple_by_path($path, $skip_menu_items = NULL) {
 
 /**
  * Get a list of layouts that share a particular path.
+ *
+ * @param string $path
+ *   The menu routing path, with all placeholders represented by "%" symbols.
+ *
+ * @return string[]
+ *   An array of layout names in order of priority.
+ *
  * @see layout_get_path_layout_names
  */
 function layout_wildcard_get_path_layout_names($path) {
