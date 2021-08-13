@@ -1,0 +1,33 @@
+<?php
+/**
+ * @file
+ * The Layout Wildcard Test module provides support for Layout Wildcard
+ * automated tests by putting some of the setup configuration into the module's
+ * config so that we can test and debug test scenarios on a live site.
+ *
+*/
+
+/**
+ * Implements hook_config_info().
+ */
+function layout_wildcard_test_config_info() {
+
+  // This view has two displays with paths test-view/1 and test-view/2. We use
+  // it to test ancestor matching using a single layout with path test-view/%.
+
+  $prefixes['views.view.test_view'] = array(
+    'label' => t('Layout Wildcard Test View'),
+    'group' => t('Views'),
+  );
+
+  // This layout has the path test-view/% and ancestor matching turned on. It
+  // also contains a custom block with text that we can use to identify the
+  // layout and a Main Content block so that the View will be displayed.
+
+//   $prefixes['layout.layout.ancestor_matching_test_layout'] = array(
+//     'label' => t('Layout Wildcard Ancestor Matching Test Layout'),
+//     'group' => t('Layouts'),
+//   );
+
+  return $prefixes;
+}

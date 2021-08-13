@@ -1,0 +1,6 @@
+name = Layout Wildcard Test
+description = Helper module for Layout Wildcard automated tests.
+package = Layout
+type = module
+backdrop = 1.x
+; hidden = TRUE

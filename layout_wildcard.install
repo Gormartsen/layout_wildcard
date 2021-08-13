@@ -19,15 +19,38 @@ function layout_wildcard_disable() {
 }
 
 /**
+ * Update config settings to add ancestor matching and rename a config variable.
+ */
+function layout_wildcard_update_1000() {
+  $configs = layout_get_all_configs('layout');
+  foreach ($configs as $layout_name => $config) {
+
+    // Add setting for ancestor matching so it can be turned on/off. Default is
+    // TRUE since versions prior to 1.x-2.x always applied ancestor matching.
+    $config['settings']['ancestor_matching'] = TRUE;
+
+    // Rename the config variable so that it is less likely to be confused with
+    // the core layout setting of 'path'.
+    if (isset($config['settings']['paths'])) {
+      $config['settings']['alternative_paths'] = $config['settings']['paths'];
+      unset($config['settings']['paths']);
+    }
+    else {
+      $config['settings']['alternative_paths'] = '';
+    }
+
+    config_set("layout.layout.{$layout_name}", 'settings', $config['settings']);
+  }
+}
+
+/**
  * Implements hook_uninstall().
  */
 function layout_wildcard_uninstall() {
   $configs = layout_get_all_configs('layout');
   foreach ($configs as $layout_name => $config) {
-    $config_name = "layout.layout.{$layout_name}";
-    if (isset($config['settings']['paths'])) {
-      unset($config['settings']['paths']);
-      config_set($config_name, 'settings', $config['settings']);
-    }
+    unset($config['settings']['ancestor_matching']);
+    unset($config['settings']['alternative_paths']);
+    config_set("layout.layout.{$layout_name}", 'settings', $config['settings']);
   }
 }

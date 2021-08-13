@@ -1,0 +1,65 @@
+<?php
+/**
+ * @file
+ * Tests for Layout Wildcard module.
+ */
+
+class LayoutWildcardTestCase extends BackdropWebTestCase {
+  protected $adminUser;
+
+  /**
+   * Sets up test environment.
+   */
+  protected function setUp() {
+    parent::setUp('layout_wildcard');
+
+    // Create and log in an administrative user.
+    $this->adminUser = $this->backdropCreateUser(array(
+      'access administration pages',
+      'administer site configuration',
+      'administer modules',
+      'administer layouts',
+      'administer nodes',
+    ));
+    $this->backdropLogin($this->adminUser);
+
+    // TBD further setup. Enable our test module.
+  }
+
+  /**
+   * Test Layout UI
+   */
+  public function testLayoutWildcardUI() {
+    $temp = $this->randomName(8);
+    $this->assertEqual($temp, $temp, 'placeholder for testLayoutUI');
+  }
+
+  /**
+   * Test Ancestor matching
+   */
+  public function testAncestorMatching() {
+    $temp = $this->randomName(8);
+    $this->assertEqual($temp, $temp, 'placeholder for testAncestorMatching');
+
+    // Test scenario for ancestor matching: a View with two displays, each with
+    // its own path:
+    // testview/1
+    // testview/2
+
+
+
+
+
+
+
+  }
+
+  /**
+   * Test Alternative paths
+   */
+  public function testAlternativePaths() {
+    $temp = $this->randomName(8);
+    $this->assertEqual($temp, $temp, 'placeholder for testAlternativePaths');
+  }
+
+}

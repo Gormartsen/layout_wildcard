@@ -7,7 +7,57 @@
 */
 
 /**
- * Route handler callback; Execute the current route item or wrap in a layout.
+ * Implements hook_layout_load_by_router_item_alter().
+ */
+function layout_wildcard_layout_load_by_router_item_alter(&$layouts, $router_item) {
+
+//dpm($layouts,'$layouts (initially)');
+
+  $all_layouts = layout_load_all();
+
+//dpm($router_item,'$router_item');
+
+  foreach ($all_layouts as $layout_name => $layout) {
+
+//dpm($layout,'$layout');
+
+    // If the layout had ancestor matching turned on, then check to see if its
+    // path matches any ancestor of the request path and attempt to set its
+    // contexts.
+    if (isset($layout->settings['ancestor_matching']) && $layout->settings['ancestor_matching']) {
+      if (!isset($ancestors)) {
+        $ancestors = menu_get_ancestors($router_item['original_map']);
+      }
+      foreach ($ancestors as $ancestor) {
+        if ($layout->getPath() == $ancestor) {
+          if (!isset($layouts[$layout->name])) {
+            $layouts[$layout->name] = $layout;
+
+            // TBD, set contexts if we can
+
+            break;
+          }
+        }
+      }
+
+    }
+    // If the layout has any alternative paths, check to see if any match the
+    // request path and attempt to set the layout's contexts.
+    if (is_array($layout->settings['alternative_paths'])) {
+      foreach ($layout->settings['alternative_paths'] as $alternative_path) {
+
+        // TBD
+
+      }
+    }
+  }
+
+//dpm($layouts,'$layouts (revised)');
+
+}
+
+/**
+ * Route handler callback; Execute the current route item or wrap in a layout. DEPRECATED
  *
  * @param $router_item
  *   The menu router item for the page currently being loaded.
@@ -18,7 +68,7 @@
  * @ingroup callbacks
  * @see layout_route_handler()
  */
-function layout_wildcard_route_handler($router_item) {
+function __layout_wildcard_route_handler($router_item) {
   // If a different delivery callback is specified, we're probably not returning
   // HTML and it definitely should not be wrapped in a layout. Call the default
   // route handler and return its response directly.
@@ -59,7 +109,7 @@ function layout_wildcard_route_handler($router_item) {
 }
 
 /**
- * Get the layout which is active based on a path or router item.
+ * Get the layout which is active based on a path or router item. DEPRECATED
  *
  * This may also be used to get the current layout on a page if no parameters
  * are passed. In which case the current path will be used.
@@ -76,7 +126,7 @@ function layout_wildcard_route_handler($router_item) {
  * @since 1.4.0
  * @see layout_get_layout_by_path
  */
-function layout_wildcard_get_layout_by_path($path = NULL, $router_item = NULL) {
+function __layout_wildcard_get_layout_by_path($path = NULL, $router_item = NULL) {
   if (!isset($router_item)) {
     $router_item = menu_get_item($path);
   }
@@ -172,7 +222,7 @@ function layout_wildcard_get_layout_by_path($path = NULL, $router_item = NULL) {
 }
 
 /**
- * Load all layouts at a given path.
+ * Load all layouts at a given path.  DEPRECATED
  *
  * @param string $path
  *   The menu routing path, with all placeholders represented by "%" symbols.
@@ -185,7 +235,7 @@ function layout_wildcard_get_layout_by_path($path = NULL, $router_item = NULL) {
  *
  * @see layout_load_multiple_by_path
  */
-function layout_wildcard_load_multiple_by_path($path, $skip_menu_items = NULL) {
+function __layout_wildcard_load_multiple_by_path($path, $skip_menu_items = NULL) {
   if ($cache = cache('layout_path')->get($path)) {
     $layouts = $cache->data;
 
@@ -216,7 +266,7 @@ function layout_wildcard_load_multiple_by_path($path, $skip_menu_items = NULL) {
 }
 
 /**
- * Get a list of layouts that share a particular path.
+ * Get a list of layouts that share a particular path.  DEPRECATED
  *
  * @param string $path
  *   The menu routing path, with all placeholders represented by "%" symbols.
@@ -226,7 +276,7 @@ function layout_wildcard_load_multiple_by_path($path, $skip_menu_items = NULL) {
  *
  * @see layout_get_path_layout_names
  */
-function layout_wildcard_get_path_layout_names($path) {
+function __layout_wildcard_get_path_layout_names($path) {
   $path_map = &backdrop_static(__FUNCTION__, array());
 
   $configs = layout_get_all_configs('layout');
@@ -234,8 +284,8 @@ function layout_wildcard_get_path_layout_names($path) {
     if (isset($config['path'])) {
       $path_map[$config['path']][] = $layout_name;
     }
-    if (isset($config['settings']['paths']) && is_array($config['settings']['paths'])) {
-      foreach($config['settings']['paths'] as $subpath) {
+    if (isset($config['settings']['alternative_paths']) && is_array($config['settings']['alternative_paths'])) {
+      foreach($config['settings']['alternative_paths'] as $subpath) {
         $path_map[$subpath][] = $layout_name;
       }
     }
@@ -251,20 +301,33 @@ function layout_wildcard_get_path_layout_names($path) {
   return isset($path_map[$path]) ? $path_map[$path] : array();
 }
 
+
+
+
+
+
 /**
  * Implements hook_form_FORM_ID_alter().
  */
 function layout_wildcard_form_layout_settings_form_alter(&$form, &$form_state) {
+  $form['ancestor_matching'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Ancestor matching'),
+    '#description' => t('Check this box to use any layout whose path matches an ancestor of the requested path.'),
+    '#default_value' => $form_state['build_info']['args'][0]->settings['ancestor_matching'],
+  );
+
   $default_value = "";
-  foreach($form_state['build_info']['args'][0]->settings['paths'] as $path){
+  foreach($form_state['build_info']['args'][0]->settings['alternative_paths'] as $path) {
     $default_value .= $path . "\n";
   }
-  $form['paths'] = array(
-    '#title' => t('Alternative paths'),
-    '#description' => t('Optionally, specify one or more alternative paths to be handled by this layout (in addition to the primary path above). Note that contexts will only be available for the primary path. ') . t('Use the "%" (percent) symbol to indicate a wildcard in the path. i.e. "node/%" or "node/%/edit"'),
+  $form['alternative_paths'] = array(
     '#type' => 'textarea',
+    '#title' => t('Alternative paths'),
+    '#description' => t('Optionally specify one or more alternative paths to be handled by this layout (in addition to the primary path above). Use the "%" (percent) symbol to indicate a wildcard in the path. e.g. "node/%" or "node/%/edit".'),
     '#default_value' => $default_value,
   );
+
   $form['actions']['submit']['#validate'][] = 'layout_wildcard_settings_form_validate';
 }
 
@@ -272,25 +335,29 @@ function layout_wildcard_form_layout_settings_form_alter(&$form, &$form_state) {
  * Validate handler for layout_settings_form() that saves in-progress values.
  */
 function layout_wildcard_settings_form_validate($form, &$form_state) {
-  global $_layout_wildcard_paths;
-  $_layout_wildcard_paths = array();
-  if (isset($form_state['values']['paths'])) {
-    $paths = explode("\n", $form_state['values']['paths']);
+  global $_layout_wildcard_ancestor_matching, $_layout_wildcard_alternative_paths;
+  $_layout_wildcard_ancestor_matching = $form_state['values']['ancestor_matching'];
+  $_layout_wildcard_alternative_paths = array();
+  if (isset($form_state['values']['alternative_paths'])) {
+    $paths = explode("\n", $form_state['values']['alternative_paths']);
     foreach($paths as $path){
       $path = trim($path);
       if(!empty($path)) {
-        $_layout_wildcard_paths[] = trim($path);
+        $_layout_wildcard_alternative_paths[] = trim($path);
       }
     }
   }
 }
 
 /**
- * Implements hook_layout_presave()
+ * Implements hook_layout_presave().
  */
 function layout_wildcard_layout_presave($layout) {
-  global $_layout_wildcard_paths;
-  if(isset($_layout_wildcard_paths)) {
-    $layout->settings['paths'] = $_layout_wildcard_paths;
+  global $_layout_wildcard_ancestor_matching, $_layout_wildcard_alternative_paths;
+  if (isset($_layout_wildcard_ancestor_matching)) {
+    $layout->settings['ancestor_matching'] = $_layout_wildcard_ancestor_matching;
+  }
+  if(isset($_layout_wildcard_alternative_paths)) {
+    $layout->settings['alternative_paths'] = $_layout_wildcard_alternative_paths;
   }
 }
