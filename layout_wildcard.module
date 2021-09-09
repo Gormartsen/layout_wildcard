@@ -7,264 +7,142 @@
 */
 
 /**
- * Route handler callback; Execute the current route item or wrap in a layout.
- *
- * @param $router_item
- *   The menu router item for the page currently being loaded.
- * @return
- *   The fully built HTML content for this page, which will be wrapped in
- *   page.tpl.php.
- *
- * @ingroup callbacks
- * @see layout_route_handler()
+ * Implements hook_layout_load_by_router_item_alter().
  */
-function layout_wildcard_route_handler($router_item) {
-  // If a different delivery callback is specified, we're probably not returning
-  // HTML and it definitely should not be wrapped in a layout. Call the default
-  // route handler and return its response directly.
-  if (!backdrop_is_html() || !empty($router_item['delivery_callback']) || $router_item['page_callback'] === 'layout_page_callback') {
-    return menu_default_route_handler($router_item);
-  }
+function layout_wildcard_layout_load_by_router_item_alter(&$layouts, $router_item) {
+  $path = $router_item['path'];
+  $placeholder_positions = _layout_wildcard_placeholder_positions($path);
+  $num_placeholders = count($placeholder_positions);
+  $configs = layout_get_all_configs('layout');
+  $added_layout_names = $added_layout_placeholder_positions = array();
 
-  $selected_layout = layout_wildcard_get_layout_by_path(NULL, $router_item);
-
-  // Safety check that we don't show an admin layout to a user who cannot view
-  // the admin theme. This may happen because the cached layout list does not
-  // include a permissions check on the admin theme.
-  if ($selected_layout->name === 'admin_default' && !user_access('view the administration theme')) {
-    $selected_layout = layout_load('default');
-  }
-
-  // Special handling for 404 and 403 pages to render in admin theme. The
-  // current path will be the 404/403 system path, and we need to check the
-  // original path, which is stored in "destination" by
-  // backdrop_deliver_html_page().
-  if (in_array(backdrop_get_http_header('Status'), array('404 Not Found', '403 Forbidden')) && user_access('view the administration theme')) {
-    if (isset($_GET['destination']) && path_is_admin($_GET['destination'])) {
-      $selected_layout = layout_load('admin_default');
+  // Check for alternative paths.
+  // We'll use any layout whose alternative path matches the requested path AND
+  // that has the same number of placeholders so that contexts can be
+  // appropriately set.
+  foreach ($configs as $config) {
+    if ($config['disabled'] || !isset($config['settings']['alternative_paths'])) {
+      continue;
     }
-  }
-
-  if ($selected_layout) {
-    // Render the layout.
-    $renderer = layout_create_renderer($selected_layout->renderer_name, $selected_layout);
-    if ($selected_layout->isDefault()) {
-      $renderer->ensurePageContentBlock();
-    }
-    return $renderer->render();
-  }
-
-  // Fallback code if even the expected default layout cannot be found.
-  return menu_default_route_handler($router_item);
-}
-
-/**
- * Get the layout which is active based on a path or router item.
- *
- * This may also be used to get the current layout on a page if no parameters
- * are passed. In which case the current path will be used.
- *
- * @param string $path
- *   The menu routing path, with all placeholders represented by "%" symbols.
- * @param $router_item
- *   The menu router item for the page currently being loaded.
- *   The $path parameter will be ignored if $router_item is specified.
- *
- * @return Layout
- *   The Layout object for the specified path.
- *
- * @since 1.4.0
- * @see layout_get_layout_by_path
- */
-function layout_wildcard_get_layout_by_path($path = NULL, $router_item = NULL) {
-  if (!isset($router_item)) {
-    $router_item = menu_get_item($path);
-  }
-
-  $cache = &backdrop_static(__FUNCTION__);
-
-  if (empty($cache[$router_item['path']])) {
-    // If the path is a node preview path, check if a custom layout exists for
-    // nodes and use that instead.
-    // @ todo: This adds very specific code for node previews which too closely
-    // couples Node and Layout modules. This needs to be reverted in a future
-    // commit.
-    $preview_node = NULL;
-    $node_types = node_type_get_types();
-    foreach ($node_types as $type) {
-      $preview_path = "node/preview/{$type->type}/%";
-      if ($router_item['path'] == $preview_path) {
-        $tempstore_id = $router_item['map'][3];
-        $preview_node = node_get_node_tempstore($tempstore_id);
-        break;
+    $name = $config['name'];
+    foreach ($config['settings']['alternative_paths'] as $alternative_path) {
+      if ($alternative_path == $path && !isset($layouts[$name]) && !isset($added_layout_names[$name])) {
+        $alt_placeholder_positions = _layout_wildcard_placeholder_positions($config['path']);
+        if ($num_placeholders == count($alt_placeholder_positions)) {
+          $added_layout_names[$name] = $name;
+          $added_layout_placeholder_positions[$name] = $alt_placeholder_positions;
+          break;
+        }
       }
     }
-    if ($preview_node) {
-      $layouts = layout_wildcard_load_multiple_by_path('node/%', TRUE);
-    }
-    else {
-      $layouts = layout_wildcard_load_multiple_by_path($router_item['path'], TRUE);
-    }
-    $selected_layout = NULL;
-    foreach ($layouts as $layout) {
-      // Contexts must be set before the layout's access may be checked.
-      $contexts = $layout->getContexts();
-      $bad_context = FALSE;
-      foreach ($contexts as $context) {
-        if (isset($context->position)) {
+  }
 
-          // If on a node preview page use the preview from tempstore.
-          // @ todo: This is also specific code for node previews which needs
-          // to be reverted in a future commit.
-          if ($preview_node) {
-            $context->setData($preview_node);
-          }
-          else {
-            if (isset($router_item['map'][$context->position])) {
-              $context_data = $router_item['map'][$context->position];
-              // Check for an object loaded by the menu router.
-              if (is_object($context_data)) {
-                $context->setData($context_data);
-              }
-              else {
-                // If no context is set, load one using the layout info.
-                $context_info = layout_get_context_info($context->plugin);
-                if (isset($context_info['load callback'])) {
-                  $context_data = call_user_func_array($context_info['load callback'], array($router_item['original_map'][$context->position]));
-                  $context->setData($context_data);
-                }
-              }
+  // Check for ancestor matching.
+  // Use any layout for which any ancestor of the request path matches the
+  // primary path of the layout. But again, the number of placeholders in the
+  // matching layout must be the same as the number of placeholders in the
+  // request path so that contexts can be appropriately set.
+  foreach ($configs as $config) {
+    if ($config['disabled'] || !isset($config['settings']['ancestor_matching'])) {
+      continue;
+    }
+    $name = $config['name'];
+    if ($config['settings']['ancestor_matching']) {
+      $ancestors = &backdrop_static(__FUNCTION__ . $path);
+      if (!isset($ancestors)) {
+        $ancestors = menu_get_ancestors($router_item['original_map']);
+      }
+      foreach ($ancestors as $ancestor) {
+        if ($config['path'] == $ancestor) {
+          if (!isset($layouts[$name]) && !isset($added_layout_names[$name])) {
+            $alt_placeholder_positions = _layout_wildcard_placeholder_positions($config['path']);
+            if ($num_placeholders == count($alt_placeholder_positions)) {
+              $added_layout_names[$name] = $name;
+              $added_layout_placeholder_positions[$name] = $alt_placeholder_positions;
             }
-          }
-          // If any context had a position variable but after attempting to set
-          // its data from the value in that position we ended up with no
-          // context data, then the value that was in the position was bad. So
-          // we shouldn't use this layout.
-          if (!$context->data) {
-            $bad_context = TRUE;
           }
         }
       }
-      if ($bad_context) {
-        continue;
-      }
-
-      if (!$layout->disabled && $layout->checkAccess()) {
-        $selected_layout = $layout;
-        break;
-      }
-    }
-
-    // If no layout matches at the path, use the default layout.
-    if (!$selected_layout) {
-      if (path_is_admin($router_item['path']) && user_access('view the administration theme')) {
-        $selected_layout = layout_load('admin_default');
-      }
-      else {
-        $selected_layout = layout_load('default');
-      }
-    }
-
-    $cache[$router_item['path']] = $selected_layout;
-  }
-
-  return $cache[$router_item['path']];
-}
-
-/**
- * Load all layouts at a given path.
- *
- * @param string $path
- *   The menu routing path, with all placeholders represented by "%" symbols.
- * @param string $skip_menu_items
- *   Specifies whether to skip loading menu items. Passed through to
- *   layout_load_multiple().
- *
- * @return Layout[]
- *   An array of load Layout object instances.
- *
- * @see layout_load_multiple_by_path
- */
-function layout_wildcard_load_multiple_by_path($path, $skip_menu_items = NULL) {
-  if ($cache = cache('layout_path')->get($path)) {
-    $layouts = $cache->data;
-
-    // Populate these cached layouts into layout_load_multiple() to optimize
-    // any future calls to it.
-    $static_cache = &backdrop_static('layout_wildcard_load_multiple', array());
-    $static_cache = array_merge($layouts, $static_cache);
-  }
-  else {
-    $layout_names = layout_wildcard_get_path_layout_names($path);
-    if (empty($layout_names)) {
-      // Skip loading menu items for the default layouts.
-      if (is_null($skip_menu_items)) {
-        $skip_menu_items = TRUE;
-      }
-      if (path_is_admin($path)) {
-        $layout_names[] = 'admin_default';
-      }
-      else {
-        $layout_names[] = 'default';
-      }
-    }
-
-    $layouts = layout_load_multiple($layout_names, $skip_menu_items);
-    cache('layout_path')->set($path, $layouts);
-  }
-  return $layouts;
-}
-
-/**
- * Get a list of layouts that share a particular path.
- *
- * @param string $path
- *   The menu routing path, with all placeholders represented by "%" symbols.
- *
- * @return string[]
- *   An array of layout names in order of priority.
- *
- * @see layout_get_path_layout_names
- */
-function layout_wildcard_get_path_layout_names($path) {
-  $path_map = &backdrop_static(__FUNCTION__, array());
-
-  $configs = layout_get_all_configs('layout');
-  foreach ($configs as $layout_name => $config) {
-    if (isset($config['path'])) {
-      $path_map[$config['path']][] = $layout_name;
-    }
-    if (isset($config['settings']['paths']) && is_array($config['settings']['paths'])) {
-      foreach($config['settings']['paths'] as $subpath) {
-        $path_map[$subpath][] = $layout_name;
-      }
     }
   }
-  // Fix issue #2412
-  $ancestors = menu_get_ancestors(explode("/", $path));
-  foreach($ancestors as $ancestor_path) {
-    if(isset($path_map[$ancestor_path])) {
-      return $path_map[$ancestor_path];
+  $added_layouts = layout_load_multiple($added_layout_names);
+
+  // Check contexts on the added layouts. If the positions don't line up between
+  // the request path and the added layout's primary path, alter the positions
+  // of the contexts so that positional contexts will fetch the right variable
+  // from the path.
+  foreach ($added_layouts as $layout) {
+    // Create a map from layout path positions to request path positions.
+    $alt_placeholder_positions = $added_layout_placeholder_positions[$layout->name];
+    $placeholder_map = array();
+    for ($i = 0; $i < $num_placeholders; $i++) {
+      $placeholder_map[$alt_placeholder_positions[$i]] = $placeholder_positions[$i];
+    }
+    $contexts = $layout->getContexts();
+    $altered_contexts = array();
+    foreach ($contexts as $context) {
+      if (isset($context->position)) {
+        // The added layout has a positioned context that may need to be repositioned.
+        $position = $context->position;
+        $new_position = $placeholder_map[$position];
+        if ($position != $new_position) {
+          $context->position = $new_position;
+          $altered_contexts[$new_position] = $context;
+          $layout->clearContexts($position);
+        }
+      }
+    }
+    foreach ($altered_contexts as $position => $context) {
+      $layout->setContexts($position, $context);
     }
   }
 
-  return isset($path_map[$path]) ? $path_map[$path] : array();
+  // Note that either default or admin default layouts should come last, so
+  // we'll check for those in the original list, pull them out if present, and
+  // add them at the end.
+  $default_layouts = array();
+  if (isset($layouts['default'])) {
+    $default_layouts['default'] = $layouts['default'];
+    unset($layouts['default']);
+  }
+  if (isset($layouts['admin_default'])) {
+    $default_layouts['admin_default'] = $layouts['admin_default'];
+    unset($layouts['admin_default']);
+  }
+
+  $layouts = array_merge($layouts, $added_layouts, $default_layouts);
 }
 
 /**
  * Implements hook_form_FORM_ID_alter().
  */
 function layout_wildcard_form_layout_settings_form_alter(&$form, &$form_state) {
-  $default_value = "";
-  foreach($form_state['build_info']['args'][0]->settings['paths'] as $path){
-    $default_value .= $path . "\n";
+  if (isset($form_state['build_info']['args'][0]->settings['alternative_paths'])) {
+    $default_value = implode("\n", $form_state['build_info']['args'][0]->settings['alternative_paths']);
   }
-  $form['paths'] = array(
-    '#title' => t('Alternative paths'),
-    '#description' => t('Optionally, specify one or more alternative paths to be handled by this layout (in addition to the primary path above). Note that contexts will only be available for the primary path. ') . t('Use the "%" (percent) symbol to indicate a wildcard in the path. i.e. "node/%" or "node/%/edit"'),
+  else {
+    $default_value = '';
+  }
+  $form['alternative_paths'] = array(
     '#type' => 'textarea',
+    '#title' => t('Alternative paths'),
+    '#description' => t('Optionally specify one or more alternative paths to be handled by this layout (in addition to the primary path above). These paths must already be provided by the system or another module. Use the percent symbol ("%") to indicate a placeholder in the path. e.g. "node/%" or "node/%/edit". The number of placeholders must be the same as in the primary path.'),
     '#default_value' => $default_value,
   );
+
+  if (isset($form_state['build_info']['args'][0]->settings['ancestor_matching'])) {
+    $default_value = $form_state['build_info']['args'][0]->settings['ancestor_matching'];
+  }
+  else {
+    $default_value = FALSE;
+  }
+  $form['ancestor_matching'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Ancestor matching'),
+    '#description' => t('Use this layout if its path matches any ancestor of the requested path.'),
+    '#default_value' => $default_value,
+  );
+
   $form['actions']['submit']['#validate'][] = 'layout_wildcard_settings_form_validate';
 }
 
@@ -272,25 +150,43 @@ function layout_wildcard_form_layout_settings_form_alter(&$form, &$form_state) {
  * Validate handler for layout_settings_form() that saves in-progress values.
  */
 function layout_wildcard_settings_form_validate($form, &$form_state) {
-  global $_layout_wildcard_paths;
-  $_layout_wildcard_paths = array();
-  if (isset($form_state['values']['paths'])) {
-    $paths = explode("\n", $form_state['values']['paths']);
+  global $_layout_wildcard_alternative_paths, $_layout_wildcard_ancestor_matching;
+  $_layout_wildcard_alternative_paths = array();
+  if (isset($form_state['values']['alternative_paths'])) {
+    $paths = explode("\n", $form_state['values']['alternative_paths']);
     foreach($paths as $path){
       $path = trim($path);
       if(!empty($path)) {
-        $_layout_wildcard_paths[] = trim($path);
+        $_layout_wildcard_alternative_paths[] = trim($path);
       }
     }
+  }
+  $_layout_wildcard_ancestor_matching = $form_state['values']['ancestor_matching'];
+}
+
+/**
+ * Implements hook_layout_presave().
+ */
+function layout_wildcard_layout_presave($layout) {
+  global $_layout_wildcard_alternative_paths, $_layout_wildcard_ancestor_matching;
+  if (isset($_layout_wildcard_alternative_paths)) {
+    $layout->settings['alternative_paths'] = $_layout_wildcard_alternative_paths;
+  }
+  if (isset($_layout_wildcard_ancestor_matching)) {
+    $layout->settings['ancestor_matching'] = $_layout_wildcard_ancestor_matching;
   }
 }
 
 /**
- * Implements hook_layout_presave()
+ * Returns an array of placeholder positions in a path.
  */
-function layout_wildcard_layout_presave($layout) {
-  global $_layout_wildcard_paths;
-  if(isset($_layout_wildcard_paths)) {
-    $layout->settings['paths'] = $_layout_wildcard_paths;
+function _layout_wildcard_placeholder_positions($path) {
+  $path_parts = explode('/', $path);
+  $placeholder_positions = array();
+  for ($i = 0; $i < count($path_parts); $i++) {
+    if ($path_parts[$i] == '%') {
+      $placeholder_positions[] = $i;
+    }
   }
+  return $placeholder_positions;
 }

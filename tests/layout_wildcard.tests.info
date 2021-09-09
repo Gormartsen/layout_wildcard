@@ -1,0 +1,6 @@
+[LayoutWildcardTestCase]
+name = Layout Wildcard tests
+description = Allow the use of Layouts on multiple paths.
+group = Layout Wildcard
+file = layout_wildcard.test
+
