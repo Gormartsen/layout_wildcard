@@ -19,7 +19,9 @@ function layout_wildcard_layout_load_by_router_item_alter(&$layouts, $router_ite
   // Check for alternative paths.
   // We'll use any layout whose alternative path matches the requested path AND
   // that has the same number of placeholders so that contexts can be
-  // appropriately set.
+  // appropriately set. (We check for this during form validation, but check
+  // again here in case the user edited the config file directly or something
+  // like that).
   foreach ($configs as $config) {
     if ($config['disabled'] || !isset($config['settings']['alternative_paths'])) {
       continue;
@@ -147,17 +149,25 @@ function layout_wildcard_form_layout_settings_form_alter(&$form, &$form_state) {
 }
 
 /**
- * Validate handler for layout_settings_form() that saves in-progress values.
+ * Validate handler for layout_settings_form() that saves in-progress values
+ * into global variables so that they can be picked up during presave.
  */
 function layout_wildcard_settings_form_validate($form, &$form_state) {
   global $_layout_wildcard_alternative_paths, $_layout_wildcard_ancestor_matching;
   $_layout_wildcard_alternative_paths = array();
   if (isset($form_state['values']['alternative_paths'])) {
+    $primary_path = $form_state['values']['path'];
+    $num_placeholders = count(_layout_wildcard_placeholder_positions($primary_path));
     $paths = explode("\n", $form_state['values']['alternative_paths']);
     foreach($paths as $path){
       $path = trim($path);
       if(!empty($path)) {
-        $_layout_wildcard_alternative_paths[] = trim($path);
+        if ($num_placeholders != count(_layout_wildcard_placeholder_positions($path))) {
+          form_set_error('alternative_paths', t('Alternative path %path should have the same number of placeholders as primary path %primary_path.', array('%path' => $path, '%primary_path' => $primary_path)));
+        }
+        else {
+          $_layout_wildcard_alternative_paths[] = $path;
+        }
       }
     }
   }

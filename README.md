@@ -12,9 +12,22 @@ Installation
 
 - Install and enable this module using [the official Backdrop CMS instructions](https://backdropcms.org/guide/modules).
 
-- Ancestor matching will take effect as soon as the module is enabled.
+Usage
+-------------
 
-- Add any desired additional paths to the "Alternative paths" setting on each layout's configuration page.
+This module adds two additional fields to the configuration page for each non-default layout:
+
+### Alternative Paths
+
+Add any desired additional paths to the "Alternative paths" setting on each layout's configuration page. This layout will be considered for usage on any page whose system path is either the primary path or one of the alternative paths. Whether the layout is actually used depends on visibility conditions and the relative ordering of the matching layout(s) and any other layouts.
+
+Note that if the layout has any placeholders in the primary path, it will have positional contexts; alternative paths must have the same number of placeholders in the same order within the path (though they don't have to be in the same positions).
+
+
+### Ancestor Matching
+
+Check the "Ancestor matching" checkbox to turn on ancestor matching, in which the layout will be used if its primary path matches any ancestor of the request path. This behavior was always invoked in LW versions prior to 1.x-2.0; now it is optional, per the checkbox.
+
 
 Versions
 -------------
@@ -47,7 +60,7 @@ This table summarizes the version compatibility of LW and Backdrop core.
 
 We encourage upgrading LW to version 2.0 at the same time that you upgrade Backdrop to version 1.20. Once LW 2.0 is released, all future development of Layout Wildcard will take places on the 2.0 branch.
 
-Layout Wildcard 2.0, in addition to supporting the new hook, also adds proper support for contexts  in alternative paths and makes ancestor matching optional.
+Layout Wildcard 2.0, in addition to supporting the new hook, also improves support for contexts in alternative paths and makes ancestor matching optional.
 
 Documentation
 -------------
