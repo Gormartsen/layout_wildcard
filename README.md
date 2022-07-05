@@ -65,7 +65,7 @@ Layout Wildcard 2.0, in addition to supporting the new hook, also improves suppo
 Documentation
 -------------
 
-Additional documentation is located in [the Wiki](https://github.com/backdrop-contrib/layout_wildcard/wiki/Documentation).
+Additional documentation (and some explanation of the various types of "paths" in Backdrop) is located in [the Wiki](https://github.com/backdrop-contrib/layout_wildcard/wiki).
 
 Issues
 ------
