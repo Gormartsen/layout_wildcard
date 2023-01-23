@@ -46,7 +46,8 @@ function layout_wildcard_layout_load_by_router_item_alter(&$layouts, $router_ite
   // matching layout must be the same as the number of placeholders in the
   // request path so that contexts can be appropriately set.
   foreach ($configs as $config) {
-    if ($config['disabled'] || !isset($config['settings']['ancestor_matching'])) {
+    $disabled = isset($config['disabled']) ? $config['disabled'] : FALSE;
+    if ($disabled || !isset($config['settings']['ancestor_matching'])) {
       continue;
     }
     $name = $config['name'];
